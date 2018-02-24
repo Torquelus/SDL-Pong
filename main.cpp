@@ -13,21 +13,37 @@ int randBetween(int minimum, int maximum){          //Generate Random Number Bet
 }
 
 //Define Constant Variables
-const int MULTIPLIER = 8;
+const float MULTIPLIER = 8;
 const int SCREEN_WIDTH = 160 * MULTIPLIER;
 const int SCREEN_HEIGHT = 120 * MULTIPLIER;
+const int SCREEN_FRAMERATE = 60;
+const int SCREEN_TICKS_PER_FRAME = 1000 / SCREEN_FRAMERATE;
+const float PADDLE_SPEED = 0.15;
+const float BALL_SPEED_INITIAL = 0.04;
+const float BALL_SPEED_INCREASE = 1.05;
+const float BALL_SPEED_MAX = 0.3;
 
-//Key Press Constants
-enum KeyPresses{
-    KEY_PRESS_UP
-};
+//Game Flag
+bool gameState = false;
+float BALL_SPEED = BALL_SPEED_INITIAL;
+
+//Key Press Buttons
+const int RPADDLE_UP = SDL_SCANCODE_UP;
+const int RPADDLE_DOWN = SDL_SCANCODE_DOWN;
+const int LPADDLE_UP = SDL_SCANCODE_W;
+const int LPADDLE_DOWN = SDL_SCANCODE_S;
+const int START_GAME1 = SDL_SCANCODE_RETURN;
+const int START_GAME2 = SDL_SCANCODE_SPACE;
+const int RESET_GAME = SDL_SCANCODE_R;
+const int EXIT_GAME = SDL_SCANCODE_ESCAPE;
 
 //Define Classes
 class Paddle{                                       //Paddle Class
     public:
         SDL_Texture *texture;       //Image of Paddle
+        SDL_Rect rect;              //Rectangle of Paddle
         int w, h;                   //Width and Height
-        int x, y;                   //Coordinates
+        float x, y;                 //Coordinates
 
         Paddle(){                           //Constructor
             score = 0;
@@ -42,6 +58,22 @@ class Paddle{                                       //Paddle Class
         void resetScore(){                  //Reset Score to 0
             score = 0;
         }
+        void moveUp(){                      //Move Paddle Up
+            if(y > PADDLE_SPEED){
+                y -= PADDLE_SPEED;
+            }
+            else{
+                y = 0;
+            }
+        }
+        void moveDown(){                    //Move Paddle Down
+            if(y < SCREEN_HEIGHT - PADDLE_SPEED - h){
+                y += PADDLE_SPEED;
+            }
+            else{
+                y = SCREEN_HEIGHT - h;
+            }
+        }
         int returnScore(){                  //Return Score of Paddle
             return score;
         }
@@ -49,17 +81,25 @@ class Paddle{                                       //Paddle Class
             w *= MULTIPLIER;
             h *= MULTIPLIER;
         }
+        void updateRect(){                  //Update Rectangle Position
+            rect.w = w;
+            rect.h = h;
+            rect.x = x;
+            rect.y = y;
+        }
     private:
         int score;                  //Score
 };
 class Ball{                                         //Class of the Ball
     public:
         SDL_Texture *texture;       //Image of Ball
+        SDL_Rect rect;              //Rectangle of Ball
         int w, h;                   //Width and Height
-        int x, y;                   //Coordinates
+        float x, y;                 //Coordinates
 
-        Ball(int init_dir = 0){             //Constructor With Initial Direction
-            dir = init_dir;
+        Ball(int init_x = 1, int init_y = 1){   //Constructor With Initial Direction
+            dirX = init_x;
+            dirY = init_y;
             moving = false;
             out_of_bounds = false;
             hit_paddle = false;
@@ -73,8 +113,52 @@ class Ball{                                         //Class of the Ball
             w *= MULTIPLIER;
             h *= MULTIPLIER;
         }
+        void randDirection(){               //Set Direction of Ball as Random
+            //Set Random X Direction
+            if(rand() % 2 == 0){
+                dirX = -1;
+            }
+            else{
+                dirX = 1;
+            }
+            //Set Random Y Direction
+            if(rand() % 2 == 0){
+                dirY = -1;
+            }
+            else{
+                dirY = 1;
+            }
+        }
+        void flipX(){                       //Flip Direction on X
+            dirX *= -1;
+        }
+        void flipY(){                       //Flip Direction on Y
+            dirY *= -1;
+        }
+        int returnDirX(){                   //Return dirX
+            return dirX;
+        }
+        void movingOn(){                    //Start Moving Ball
+            moving = true;
+        }
+        void movingOff(){                   //Stop Moving Ball
+            moving = false;
+        }
+        void moveBall(){                    //Move the Ball
+            if(moving){
+                x += BALL_SPEED * dirX;
+                y += BALL_SPEED * dirY;
+            }
+        }
+        void updateRect(){                  //Update Rectangle Position
+            rect.w = w;
+            rect.h = h;
+            rect.x = x;
+            rect.y = y;
+        }
     private:
-        int dir;                    //Direction of Ball's Movement
+        int dirX;                   //Direction of Ball's Movement in X
+        int dirY;                   //Direction of Ball's Movement in Y
         bool moving;                //Is the Ball Moving?
         bool out_of_bounds;         //Is the Ball Out of Bounds?
         bool hit_paddle;            //Did the Ball Hit the Paddle?
@@ -195,8 +279,8 @@ bool initPong(){                                    //Initialize the Program
     //Return Success Flag
     return success;
 }
-void blitImage(SDL_Texture *texture, int x,         //Blit Image
-               int y, int w, int h){
+void blitImage(SDL_Rect rect, SDL_Texture *texture, //Blit Image
+               int x,int y, int w, int h){
     //Rectangle to Blit Onto
     SDL_Rect destR;
 
@@ -207,19 +291,71 @@ void blitImage(SDL_Texture *texture, int x,         //Blit Image
     destR.h = h;
 
     //Blitting
-    SDL_RenderCopy(renderer, texture, NULL, &destR);
+    SDL_RenderCopy(renderer, texture, NULL, &rect);
 }
 void updateScreen(){                                //Update Screen
     //Clear Renderer
     SDL_RenderClear(renderer);
 
     //Update Positions
-    blitImage(pongBall.texture, pongBall.x, pongBall.y, pongBall.w, pongBall.h);
-    blitImage(lPaddle.texture, lPaddle.x, lPaddle.y, lPaddle.w, lPaddle.h);
-    blitImage(rPaddle.texture, rPaddle.x, rPaddle.y, rPaddle.w, rPaddle.h);
+    pongBall.updateRect();
+    lPaddle.updateRect();
+    rPaddle.updateRect();
+    blitImage(pongBall.rect, pongBall.texture, pongBall.x, pongBall.y, pongBall.w, pongBall.h);
+    blitImage(lPaddle.rect, lPaddle.texture, lPaddle.x, lPaddle.y, lPaddle.w, lPaddle.h);
+    blitImage(rPaddle.rect, rPaddle.texture, rPaddle.x, rPaddle.y, rPaddle.w, rPaddle.h);
 
     //Update Screen
     SDL_RenderPresent(renderer);
+}
+bool rectCollision(SDL_Rect A, SDL_Rect B){         //Check Rectangle Collision
+    //Collision Flag
+    bool collides = true;
+
+    //Rectangle Sides
+    int leftA, leftB;
+    int rightA, rightB;
+    int topA, topB;
+    int bottomA, bottomB;
+
+    //Calculate Sides of A
+    leftA = A.x;
+    rightA = A.x + A.w;
+    topA = A.y;
+    bottomA = A.y + A.h;
+
+    //Calculate Sides of B
+    leftB = B.x;
+    rightB = B.x + B.w;
+    topB = B.y;
+    bottomB = B.y + B.h;
+
+    //Check Collision
+    if(bottomA <= topB){
+        collides = false;
+    }
+    if(topA >= bottomB){
+        collides = false;
+    }
+    if(rightA <= leftB){
+        collides = false;
+    }
+    if(leftA >= rightB){
+        collides = false;
+    }
+
+    return collides;
+}
+void checkCollisions(){                             //Check Collisions
+    if(pongBall.y <= BALL_SPEED || pongBall.y >= SCREEN_HEIGHT - pongBall.h - BALL_SPEED){
+        pongBall.flipY();
+    }
+    if((rectCollision(pongBall.rect, rPaddle.rect) && (pongBall.returnDirX() == 1)) || (rectCollision(pongBall.rect, lPaddle.rect) && (pongBall.returnDirX() == -1))){
+        pongBall.flipX();
+        if(BALL_SPEED < BALL_SPEED_MAX){    //Increment Ball Speed
+            BALL_SPEED *= BALL_SPEED_INCREASE;
+        }
+    }
 }
 void gameLoop(){                                    //Main Game Loop
     //Main Loop Flag
@@ -230,6 +366,7 @@ void gameLoop(){                                    //Main Game Loop
 
     //While Application is Running
     while(!quit){
+        const Uint8 *currentKeyStates = SDL_GetKeyboardState(NULL);
         //Handle Events on Queue
         while(SDL_PollEvent(&e) != 0){
             //User Requests to Quit
@@ -237,6 +374,37 @@ void gameLoop(){                                    //Main Game Loop
                 quit = true;
             }
         }
+
+        //Key Press
+        if(currentKeyStates[RPADDLE_UP]){                                                   // Paddle Up
+            rPaddle.moveUp();
+        }
+        if(currentKeyStates[RPADDLE_DOWN]){                                                 //Right Paddle Down
+            rPaddle.moveDown();
+        }
+        if(currentKeyStates[LPADDLE_UP]){                                                   //Left Paddle Up
+            lPaddle.moveUp();
+        }
+        if(currentKeyStates[LPADDLE_DOWN]){                                                 //Left Paddle Down
+            lPaddle.moveDown();
+        }
+        if((currentKeyStates[START_GAME1] || currentKeyStates[START_GAME2]) && !gameState){ //Start Game
+            gameState = true;
+            pongBall.randDirection();
+            pongBall.movingOn();
+            BALL_SPEED = BALL_SPEED_INITIAL;
+        }
+        if(currentKeyStates[RESET_GAME] && gameState){                                      //Reset Game
+            gameState = false;
+            pongBall.movingOff();
+            pongBall.reset();
+        }
+        if(currentKeyStates[EXIT_GAME]){                                                    //Quit
+            quit = true;
+        }
+
+        pongBall.moveBall();
+        checkCollisions();
 
         updateScreen();
     }
