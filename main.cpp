@@ -16,6 +16,7 @@ int randBetween(int minimum, int maximum){          //Generate Random Number Bet
 const float MULTIPLIER = 8;
 const int SCREEN_WIDTH = 160 * MULTIPLIER;
 const int SCREEN_HEIGHT = 120 * MULTIPLIER;
+const int RECTANGLE_Y = SCREEN_HEIGHT / 8;
 const int SCREEN_FRAMERATE = 60;
 const int SCREEN_TICKS_PER_FRAME = 1000 / SCREEN_FRAMERATE;
 const float PADDLE_SPEED = 0.15;
@@ -60,11 +61,11 @@ class Paddle{                                       //Paddle Class
             score = 0;
         }
         void moveUp(){                      //Move Paddle Up
-            if(y > PADDLE_SPEED){
+            if(y > PADDLE_SPEED + RECTANGLE_Y){
                 y -= PADDLE_SPEED;
             }
             else{
-                y = 0;
+                y = RECTANGLE_Y;
             }
         }
         void moveDown(){                    //Move Paddle Down
@@ -108,7 +109,7 @@ class Ball{                                         //Class of the Ball
         ~Ball(){}                           //Destructor
         void reset(){                       //Reset Ball Position
             x = SCREEN_WIDTH / 2 - w / 2;
-            y = randBetween(1, SCREEN_HEIGHT - h - 1);
+            y = randBetween(RECTANGLE_Y + 1, SCREEN_HEIGHT - h - 1);
             moving = false;
         }
         void multiply(){                    //Resize Texture
@@ -170,6 +171,9 @@ class Ball{                                         //Class of the Ball
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 TTF_Font *scoreFont = NULL;
+
+//Define UI Elements
+SDL_Rect rectangle = {0, RECTANGLE_Y - 10, SCREEN_WIDTH, 10};
 
 //Define Paddles and Ball
 Paddle lPaddle;
@@ -254,9 +258,6 @@ bool initPong(){                                    //Initialize the Program
         return success;
     }
 
-    //Initialize Renderer Colour
-    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0xAA, 0x00);
-
     //Update Window
     SDL_UpdateWindowSurface(window);
 
@@ -298,7 +299,13 @@ void updateScreen(){                                //Update Screen
     blitImage(lPaddle.rect, lPaddle.texture, lPaddle.x, lPaddle.y, lPaddle.w, lPaddle.h);
     blitImage(rPaddle.rect, rPaddle.texture, rPaddle.x, rPaddle.y, rPaddle.w, rPaddle.h);
 
+    //Create UI
+    SDL_SetRenderDrawColor(renderer, 134, 122, 228, 255);
+    SDL_RenderFillRect(renderer, &rectangle);
+    SDL_RenderPresent(renderer);
+
     //Update Screen
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0xAA, 0x00);
     SDL_RenderPresent(renderer);
 }
 bool rectCollision(SDL_Rect A, SDL_Rect B){         //Check Rectangle Collision
@@ -340,7 +347,7 @@ bool rectCollision(SDL_Rect A, SDL_Rect B){         //Check Rectangle Collision
     return collides;
 }
 void checkCollisions(){                             //Check Collisions
-    if(pongBall.y <= BALL_SPEED || pongBall.y >= SCREEN_HEIGHT - pongBall.h - BALL_SPEED){
+    if(pongBall.y <= BALL_SPEED + RECTANGLE_Y|| pongBall.y >= SCREEN_HEIGHT - pongBall.h - BALL_SPEED){
         pongBall.flipY();
     }
     if((rectCollision(pongBall.rect, rPaddle.rect) && (pongBall.returnDirX() == 1)) || (rectCollision(pongBall.rect, lPaddle.rect) && (pongBall.returnDirX() == -1))){
