@@ -48,6 +48,7 @@ class Paddle{                                       //Paddle Class
         Paddle(){                           //Constructor
             score = 0;
         }
+        ~Paddle(){}                          //Destructor
         void setPos(int init_x, int init_y){//Set Initial Position
             x = init_x;
             y = init_y;
@@ -97,16 +98,17 @@ class Ball{                                         //Class of the Ball
         int w, h;                   //Width and Height
         float x, y;                 //Coordinates
 
-        Ball(int init_x = 1, int init_y = 1){   //Constructor With Initial Direction
+        Ball(int init_x = 1, int init_y = 1){//Constructor With Initial Direction
             dirX = init_x;
             dirY = init_y;
             moving = false;
             out_of_bounds = false;
             hit_paddle = false;
         }
+        ~Ball(){}                           //Destructor
         void reset(){                       //Reset Ball Position
             x = SCREEN_WIDTH / 2 - w / 2;
-            y = randBetween(0, SCREEN_HEIGHT - h);
+            y = randBetween(1, SCREEN_HEIGHT - h - 1);
             moving = false;
         }
         void multiply(){                    //Resize Texture
@@ -281,15 +283,6 @@ bool initPong(){                                    //Initialize the Program
 }
 void blitImage(SDL_Rect rect, SDL_Texture *texture, //Blit Image
                int x,int y, int w, int h){
-    //Rectangle to Blit Onto
-    SDL_Rect destR;
-
-    //Rectangle Coordinates
-    destR.x = x;
-    destR.y = y;
-    destR.w = w;
-    destR.h = h;
-
     //Blitting
     SDL_RenderCopy(renderer, texture, NULL, &rect);
 }
@@ -357,6 +350,33 @@ void checkCollisions(){                             //Check Collisions
         }
     }
 }
+void checkScore(){                                  //Check If Ball is Scored
+    if(pongBall.x <= 0){
+        rPaddle.scoreUp();
+        pongBall.reset();
+        gameState = false;
+        cout << "Left: " << lPaddle.returnScore() << " | Right: " << rPaddle.returnScore() << endl;
+    }
+    if(pongBall.x >= SCREEN_WIDTH){
+        lPaddle.scoreUp();
+        pongBall.reset();
+        gameState = false;
+        cout << "Left: " << lPaddle.returnScore() << " | Right: " << rPaddle.returnScore() << endl;
+    }
+}
+void startGame(){                                   //Start the Game
+    gameState = true;
+    pongBall.randDirection();
+    pongBall.movingOn();
+    BALL_SPEED = BALL_SPEED_INITIAL;
+}
+void resetGame(){                                   //Reset the Game
+    gameState = false;
+    pongBall.movingOff();
+    pongBall.reset();
+    lPaddle.resetScore();
+    rPaddle.resetScore();
+}
 void gameLoop(){                                    //Main Game Loop
     //Main Loop Flag
     bool quit = false;
@@ -389,21 +409,17 @@ void gameLoop(){                                    //Main Game Loop
             lPaddle.moveDown();
         }
         if((currentKeyStates[START_GAME1] || currentKeyStates[START_GAME2]) && !gameState){ //Start Game
-            gameState = true;
-            pongBall.randDirection();
-            pongBall.movingOn();
-            BALL_SPEED = BALL_SPEED_INITIAL;
+            startGame();
         }
         if(currentKeyStates[RESET_GAME] && gameState){                                      //Reset Game
-            gameState = false;
-            pongBall.movingOff();
-            pongBall.reset();
+            resetGame();
         }
         if(currentKeyStates[EXIT_GAME]){                                                    //Quit
             quit = true;
         }
 
         pongBall.moveBall();
+        checkScore();
         checkCollisions();
 
         updateScreen();
