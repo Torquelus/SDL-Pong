@@ -13,16 +13,21 @@ int randBetween(int minimum, int maximum){          //Generate Random Number Bet
 }
 
 //Define Constant Variables
-const float MULTIPLIER = 8;
+const float MULTIPLIER = 6;
 const int SCREEN_WIDTH = 160 * MULTIPLIER;
 const int SCREEN_HEIGHT = 120 * MULTIPLIER;
 const int RECTANGLE_Y = SCREEN_HEIGHT / 8;
 const int SCREEN_FRAMERATE = 60;
 const int SCREEN_TICKS_PER_FRAME = 1000 / SCREEN_FRAMERATE;
-const float PADDLE_SPEED = 0.15;
-const float BALL_SPEED_INITIAL = 0.04;
+const float PADDLE_SPEED = 1.0 * MULTIPLIER;
+const float BALL_SPEED_INITIAL = 0.3 * MULTIPLIER;
 const float BALL_SPEED_INCREASE = 1.05;
-const float BALL_SPEED_MAX = 0.3;
+const float BALL_SPEED_MAX = 2.0 * MULTIPLIER;
+
+//Time Variables
+uint32_t currentTick;
+uint32_t lastTick;
+uint32_t deltaTime;
 
 //Game Flag
 bool gameState = false;
@@ -279,6 +284,10 @@ bool initPong(){                                    //Initialize the Program
     lPaddle.setPos(0, SCREEN_HEIGHT / 2 - lPaddle.h / 2);
     rPaddle.setPos(SCREEN_WIDTH - rPaddle.w, SCREEN_HEIGHT / 2 - rPaddle.h / 2);
 
+    //Start Timer at 0
+    lastTick = 0;
+    deltaTime = 0;
+
     //Return Success Flag
     return success;
 }
@@ -307,6 +316,16 @@ void updateScreen(){                                //Update Screen
     //Update Screen
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0xAA, 0x00);
     SDL_RenderPresent(renderer);
+
+    //Check Timer
+    currentTick = SDL_GetTicks();
+    deltaTime = currentTick - lastTick;
+    lastTick = currentTick;
+
+    //Limit Framerate
+    if(deltaTime < SCREEN_TICKS_PER_FRAME){
+        SDL_Delay(SCREEN_TICKS_PER_FRAME - deltaTime);
+    }
 }
 bool rectCollision(SDL_Rect A, SDL_Rect B){         //Check Rectangle Collision
     //Collision Flag
@@ -393,6 +412,7 @@ void gameLoop(){                                    //Main Game Loop
 
     //While Application is Running
     while(!quit){
+        //Read Keyboard Input
         const Uint8 *currentKeyStates = SDL_GetKeyboardState(NULL);
         //Handle Events on Queue
         while(SDL_PollEvent(&e) != 0){
