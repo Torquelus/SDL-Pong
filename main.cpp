@@ -13,7 +13,7 @@ int randBetween(int minimum, int maximum){          //Generate Random Number Bet
 }
 
 //Define Constant Variables
-const float MULTIPLIER = 6;
+const float MULTIPLIER = 4;
 const int SCREEN_WIDTH = 160 * MULTIPLIER;
 const int SCREEN_HEIGHT = 120 * MULTIPLIER;
 const int RECTANGLE_Y = SCREEN_HEIGHT / 8;
@@ -42,6 +42,11 @@ const int START_GAME1 = SDL_SCANCODE_RETURN;
 const int START_GAME2 = SDL_SCANCODE_SPACE;
 const int RESET_GAME = SDL_SCANCODE_R;
 const int EXIT_GAME = SDL_SCANCODE_ESCAPE;
+
+//Define Screen and Font
+SDL_Window *window = NULL;
+SDL_Renderer *renderer = NULL;
+TTF_Font *scoreFont = NULL;
 
 //Define Classes
 class Paddle{                                       //Paddle Class
@@ -171,14 +176,53 @@ class Ball{                                         //Class of the Ball
         bool out_of_bounds;         //Is the Ball Out of Bounds?
         bool hit_paddle;            //Did the Ball Hit the Paddle?
 };
+class Score{                                        //Scores and Texts
+    public:
+        //Variables
+        SDL_Texture *text;          //Texture of Text
+        SDL_Rect rect;              //Rectangle of Ball
+        SDL_Colour textColour = {134, 122, 228};
+        int w, h;                   //Width and Height
+        float x, y;                 //Coordinates
 
-//Define Screen and Font
-SDL_Window *window = NULL;
-SDL_Renderer *renderer = NULL;
-TTF_Font *scoreFont = NULL;
+        Score(){}                           //Constructor
+        ~Score(){};                         //Destructor
+
+        void setPos(int init_x, int init_y){//Set Initial Position
+            x = init_x;
+            y = init_y;
+        }
+        void updateRect(){                  //Update Rectangle Position
+            rect.w = w;
+            rect.h = h;
+            rect.x = x;
+            rect.y = y;
+        }
+        void updateText(string score){      //Update the Texture
+            //Create Surface from Text
+            SDL_Surface *textSurface = TTF_RenderText_Solid(scoreFont, score.c_str(), textColour);
+            if(textSurface == NULL){
+                cerr << "Unable to Create Text Surface! SDL_ttf Error: " << TTF_GetError() << endl;
+            }
+            //Create Texture from Surface
+            text = SDL_CreateTextureFromSurface(renderer, textSurface);
+            if(text == NULL){
+                cerr << "Unable to Create Texture from textSurface! SDL_ttf Error: " << TTF_GetError() << endl;
+            }
+
+            //Define Width and Height
+            w = textSurface->w;
+            h = textSurface->h;
+
+            //Free Surface
+            SDL_FreeSurface(textSurface);
+        }
+};
 
 //Define UI Elements
-SDL_Rect rectangle = {0, RECTANGLE_Y - 10, SCREEN_WIDTH, 10};
+SDL_Rect rectangle = {0, RECTANGLE_Y - 2 * MULTIPLIER, SCREEN_WIDTH, 2 * MULTIPLIER};
+Score lScore;
+Score rScore;
 
 //Define Paddles and Ball
 Paddle lPaddle;
@@ -195,20 +239,20 @@ bool initSDL(){                                     //Initialize SDL
 
     //Initialize SDL
     if(SDL_Init(SDL_INIT_VIDEO) != 0){
-        cout << "SDL failed to initialize! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "SDL failed to initialize! SDL_Error: " << SDL_GetError() << endl;
         success = false;
     }
 
     //Initialize TTF
     if(TTF_Init() != 0){
-        cout << "TTF failed to initialize! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "TTF failed to initialize! SDL_Error: " << SDL_GetError() << endl;
         success = false;
     }
 
     //Initialize PNG Loading
     int imgFlags = IMG_INIT_PNG;
     if(!(IMG_Init(imgFlags) & imgFlags)){
-        cout << "SDL_image failed to initialize! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "SDL_image failed to initialize! SDL_Error: " << SDL_GetError() << endl;
         success = false;
     }
 
@@ -242,7 +286,7 @@ bool initPong(){                                    //Initialize the Program
     bool success = true;
 
     //Create Font
-    scoreFont = TTF_OpenFont("fonts/C64.ttf", 32);
+    scoreFont = TTF_OpenFont("fonts/C64.ttf", 8 * MULTIPLIER);
     if(scoreFont == NULL){
         cout << "Font could not be opened! SDL_Error: " << SDL_GetError() << endl;
         success = false;
@@ -284,6 +328,10 @@ bool initPong(){                                    //Initialize the Program
     lPaddle.setPos(0, SCREEN_HEIGHT / 2 - lPaddle.h / 2);
     rPaddle.setPos(SCREEN_WIDTH - rPaddle.w, SCREEN_HEIGHT / 2 - rPaddle.h / 2);
 
+    //Set Initial Score
+    lScore.updateText("0");
+    rScore.updateText("0");
+
     //Start Timer at 0
     lastTick = 0;
     deltaTime = 0;
@@ -299,6 +347,20 @@ void blitImage(SDL_Rect rect, SDL_Texture *texture, //Blit Image
 void updateScreen(){                                //Update Screen
     //Clear Renderer
     SDL_RenderClear(renderer);
+
+    //Update Right Score
+    rScore.setPos(SCREEN_WIDTH - lScore.w - 2 * MULTIPLIER, 2 * MULTIPLIER);
+    rScore.updateRect();
+    rScore.updateText(to_string(rPaddle.returnScore()));
+
+    //Update Left Score
+    lScore.setPos(2 * MULTIPLIER, 2 * MULTIPLIER);
+    lScore.updateRect();
+    lScore.updateText(to_string(lPaddle.returnScore()));
+
+    //Update Scores
+    blitImage(rScore.rect, rScore.text, rScore.x, rScore.y, rScore.w, rScore.h);
+    blitImage(lScore.rect, lScore.text, lScore.x, lScore.y, lScore.w, lScore.h);
 
     //Update Positions
     pongBall.updateRect();
@@ -381,13 +443,11 @@ void checkScore(){                                  //Check If Ball is Scored
         rPaddle.scoreUp();
         pongBall.reset();
         gameState = false;
-        cout << "Left: " << lPaddle.returnScore() << " | Right: " << rPaddle.returnScore() << endl;
     }
     if(pongBall.x >= SCREEN_WIDTH){
         lPaddle.scoreUp();
         pongBall.reset();
         gameState = false;
-        cout << "Left: " << lPaddle.returnScore() << " | Right: " << rPaddle.returnScore() << endl;
     }
 }
 void startGame(){                                   //Start the Game
