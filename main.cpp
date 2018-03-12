@@ -47,6 +47,7 @@ const int EXIT_GAME = SDL_SCANCODE_ESCAPE;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 TTF_Font *scoreFont = NULL;
+TTF_Font *logoFont = NULL;
 
 //Define Classes
 class Paddle{                                       //Paddle Class
@@ -198,9 +199,9 @@ class Score{                                        //Scores and Texts
             rect.x = x;
             rect.y = y;
         }
-        void updateText(string score){      //Update the Texture
+        void updateText(string score, TTF_Font *font){      //Update the Texture
             //Create Surface from Text
-            SDL_Surface *textSurface = TTF_RenderText_Solid(scoreFont, score.c_str(), textColour);
+            SDL_Surface *textSurface = TTF_RenderText_Solid(font, score.c_str(), textColour);
             if(textSurface == NULL){
                 cerr << "Unable to Create Text Surface! SDL_ttf Error: " << TTF_GetError() << endl;
             }
@@ -223,6 +224,7 @@ class Score{                                        //Scores and Texts
 SDL_Rect rectangle = {0, RECTANGLE_Y - 2 * MULTIPLIER, SCREEN_WIDTH, 2 * MULTIPLIER};
 Score lScore;
 Score rScore;
+Score logo;
 
 //Define Paddles and Ball
 Paddle lPaddle;
@@ -281,13 +283,25 @@ SDL_Texture *loadTexture(string path){              //Load an Image into a Textu
 
     return newTexture;
 }
+void blitImage(SDL_Rect rect, SDL_Texture *texture, //Blit Image
+               int x,int y, int w, int h){
+    //Blitting
+    SDL_RenderCopy(renderer, texture, NULL, &rect);
+}
 bool initPong(){                                    //Initialize the Program
     //Success Flag
     bool success = true;
 
-    //Create Font
+    //Create Score Font
     scoreFont = TTF_OpenFont("fonts/C64.ttf", 8 * MULTIPLIER);
     if(scoreFont == NULL){
+        cout << "Font could not be opened! SDL_Error: " << SDL_GetError() << endl;
+        success = false;
+    }
+
+    //Create Logo Font
+    logoFont = TTF_OpenFont("fonts/C64.ttf", 12 * MULTIPLIER);
+    if(logoFont == NULL){
         cout << "Font could not be opened! SDL_Error: " << SDL_GetError() << endl;
         success = false;
     }
@@ -323,14 +337,17 @@ bool initPong(){                                    //Initialize the Program
     lPaddle.multiply();
     rPaddle.multiply();
 
+    //Set Initial Score & Logo
+    lScore.updateText("0", scoreFont);
+    rScore.updateText("0", scoreFont);
+    logo.updateText("PONG", logoFont);
+
     //Set Initial Positions
     pongBall.reset();
     lPaddle.setPos(0, SCREEN_HEIGHT / 2 - lPaddle.h / 2);
     rPaddle.setPos(SCREEN_WIDTH - rPaddle.w, SCREEN_HEIGHT / 2 - rPaddle.h / 2);
-
-    //Set Initial Score
-    lScore.updateText("0");
-    rScore.updateText("0");
+    logo.setPos(SCREEN_WIDTH / 2 - logo.w / 2, RECTANGLE_Y / 2 - logo.h / 2);
+    logo.updateRect();
 
     //Start Timer at 0
     lastTick = 0;
@@ -339,28 +356,24 @@ bool initPong(){                                    //Initialize the Program
     //Return Success Flag
     return success;
 }
-void blitImage(SDL_Rect rect, SDL_Texture *texture, //Blit Image
-               int x,int y, int w, int h){
-    //Blitting
-    SDL_RenderCopy(renderer, texture, NULL, &rect);
-}
 void updateScreen(){                                //Update Screen
     //Clear Renderer
     SDL_RenderClear(renderer);
 
     //Update Right Score
-    rScore.setPos(SCREEN_WIDTH - lScore.w - 2 * MULTIPLIER, 2 * MULTIPLIER);
+    rScore.setPos(SCREEN_WIDTH - lScore.w - 2 * MULTIPLIER, RECTANGLE_Y / 2 - rScore.h / 2);
     rScore.updateRect();
-    rScore.updateText(to_string(rPaddle.returnScore()));
+    rScore.updateText(to_string(rPaddle.returnScore()), scoreFont);
 
     //Update Left Score
-    lScore.setPos(2 * MULTIPLIER, 2 * MULTIPLIER);
+    lScore.setPos(2 * MULTIPLIER, RECTANGLE_Y / 2 - lScore.h / 2);
     lScore.updateRect();
-    lScore.updateText(to_string(lPaddle.returnScore()));
+    lScore.updateText(to_string(lPaddle.returnScore()), scoreFont);
 
-    //Update Scores
+    //Blit Scores and Logo
     blitImage(rScore.rect, rScore.text, rScore.x, rScore.y, rScore.w, rScore.h);
     blitImage(lScore.rect, lScore.text, lScore.x, lScore.y, lScore.w, lScore.h);
+    blitImage(logo.rect, logo.text, logo.x, logo.y, logo.w, logo.h);
 
     //Update Positions
     pongBall.updateRect();
