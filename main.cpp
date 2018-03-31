@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <SDL_mixer.h>
 
 using namespace std;
 
@@ -31,6 +32,7 @@ uint32_t deltaTime;
 
 //Game Flag
 bool gameState = false;
+bool gameWin = false;
 float BALL_SPEED = BALL_SPEED_INITIAL;
 
 //Key Press Buttons
@@ -42,6 +44,12 @@ const int START_GAME1 = SDL_SCANCODE_RETURN;
 const int START_GAME2 = SDL_SCANCODE_SPACE;
 const int RESET_GAME = SDL_SCANCODE_R;
 const int EXIT_GAME = SDL_SCANCODE_ESCAPE;
+
+//Sound Effects
+Mix_Chunk *ballCollideSound = NULL;
+Mix_Chunk *paddleCollideSound = NULL;
+Mix_Chunk *scoreSound = NULL;
+Mix_Chunk *resetSound = NULL;
 
 //Define Screen and Font
 SDL_Window *window = NULL;
@@ -67,6 +75,7 @@ class Paddle{                                       //Paddle Class
         }
         void scoreUp(){                     //Increment Score By 1
             score += 1;
+            Mix_PlayChannel(-1, scoreSound, 0);
         }
         void resetScore(){                  //Reset Score to 0
             score = 0;
@@ -201,7 +210,7 @@ class Score{                                        //Scores and Texts
         }
         void updateText(string score, TTF_Font *font){      //Update the Texture
             //Create Surface from Text
-            SDL_Surface *textSurface = TTF_RenderText_Solid(font, score.c_str(), textColour);
+            SDL_Surface *textSurface = TTF_RenderText_Blended_Wrapped(font, score.c_str(), textColour, 400 );
             if(textSurface == NULL){
                 cerr << "Unable to Create Text Surface! SDL_ttf Error: " << TTF_GetError() << endl;
             }
@@ -225,6 +234,7 @@ SDL_Rect rectangle = {0, RECTANGLE_Y - 2 * MULTIPLIER, SCREEN_WIDTH, 2 * MULTIPL
 Score lScore;
 Score rScore;
 Score logo;
+Score winText;
 
 //Define Paddles and Ball
 Paddle lPaddle;
@@ -240,21 +250,27 @@ bool initSDL(){                                     //Initialize SDL
     srand(time(NULL));
 
     //Initialize SDL
-    if(SDL_Init(SDL_INIT_VIDEO) != 0){
+    if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0){
         cerr << "SDL failed to initialize! SDL_Error: " << SDL_GetError() << endl;
         success = false;
     }
 
     //Initialize TTF
     if(TTF_Init() != 0){
-        cerr << "TTF failed to initialize! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "TTF failed to initialize! TTF Error: " << TTF_GetError() << endl;
         success = false;
     }
 
     //Initialize PNG Loading
     int imgFlags = IMG_INIT_PNG;
     if(!(IMG_Init(imgFlags) & imgFlags)){
-        cerr << "SDL_image failed to initialize! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "SDL_image failed to initialize! SDL_image Error: " << IMG_GetError() << endl;
+        success = false;
+    }
+
+    //Initialize SDL_mixer
+    if(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) != 0){
+        cerr << "SDL_mixer failed to initialize! SDL_mixer Error: " << Mix_GetError() << endl;
         success = false;
     }
 
@@ -295,28 +311,55 @@ bool initPong(){                                    //Initialize the Program
     //Create Score Font
     scoreFont = TTF_OpenFont("fonts/C64.ttf", 8 * MULTIPLIER);
     if(scoreFont == NULL){
-        cout << "Font could not be opened! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "Font could not be opened! SDL_Error: " << SDL_GetError() << endl;
         success = false;
     }
 
     //Create Logo Font
     logoFont = TTF_OpenFont("fonts/C64.ttf", 12 * MULTIPLIER);
     if(logoFont == NULL){
-        cout << "Font could not be opened! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "Font could not be opened! SDL_Error: " << TTF_GetError() << endl;
         success = false;
     }
 
     //Create Window
     window = SDL_CreateWindow("Pong", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
     if(window == NULL){
-        cout << "Window could not be created! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << endl;
         success = false;
         return success;
     }
+
     //Create Renderer
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if(renderer == NULL){
-        cout << "Renderer could not be created! SDL_Error: " << SDL_GetError() << endl;
+        cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << endl;
+        success = false;
+        return success;
+    }
+
+    //Load Sound Effects
+    ballCollideSound = Mix_LoadWAV("sounds/ball_collide.wav");
+    if(ballCollideSound == NULL){
+        cerr << "ballCollideSound could not be loaded! Mix_Error: " << Mix_GetError() << endl;
+        success = false;
+        return success;
+    }
+    paddleCollideSound = Mix_LoadWAV("sounds/paddle_collide.wav");
+    if(paddleCollideSound == NULL){
+        cerr << "paddleCollideSound could not be loaded! Mix_Error: " << Mix_GetError() << endl;
+        success = false;
+        return success;
+    }
+    scoreSound = Mix_LoadWAV("sounds/score.wav");
+    if(scoreSound == NULL){
+        cerr << "scoreSound could not be loaded! Mix_Error: " << Mix_GetError() << endl;
+        success = false;
+        return success;
+    }
+    resetSound = Mix_LoadWAV("sounds/reset.wav");
+    if(resetSound == NULL){
+        cerr << "resetSound could not be loaded! Mix_Error: " << Mix_GetError() << endl;
         success = false;
         return success;
     }
@@ -375,13 +418,20 @@ void updateScreen(){                                //Update Screen
     blitImage(lScore.rect, lScore.text, lScore.x, lScore.y, lScore.w, lScore.h);
     blitImage(logo.rect, logo.text, logo.x, logo.y, logo.w, logo.h);
 
+    //Blit Win Text
+    if(gameWin == 1){
+        blitImage(winText.rect, winText.text, winText.x, winText.y, winText.w, winText.h);
+    }
+
     //Update Positions
-    pongBall.updateRect();
-    lPaddle.updateRect();
-    rPaddle.updateRect();
-    blitImage(pongBall.rect, pongBall.texture, pongBall.x, pongBall.y, pongBall.w, pongBall.h);
-    blitImage(lPaddle.rect, lPaddle.texture, lPaddle.x, lPaddle.y, lPaddle.w, lPaddle.h);
-    blitImage(rPaddle.rect, rPaddle.texture, rPaddle.x, rPaddle.y, rPaddle.w, rPaddle.h);
+    if(gameWin == 0){
+        pongBall.updateRect();
+        lPaddle.updateRect();
+        rPaddle.updateRect();
+        blitImage(pongBall.rect, pongBall.texture, pongBall.x, pongBall.y, pongBall.w, pongBall.h);
+        blitImage(lPaddle.rect, lPaddle.texture, lPaddle.x, lPaddle.y, lPaddle.w, lPaddle.h);
+        blitImage(rPaddle.rect, rPaddle.texture, rPaddle.x, rPaddle.y, rPaddle.w, rPaddle.h);
+    }
 
     //Create UI
     SDL_SetRenderDrawColor(renderer, 134, 122, 228, 255);
@@ -443,9 +493,11 @@ bool rectCollision(SDL_Rect A, SDL_Rect B){         //Check Rectangle Collision
 void checkCollisions(){                             //Check Collisions
     if(pongBall.y <= BALL_SPEED + RECTANGLE_Y|| pongBall.y >= SCREEN_HEIGHT - pongBall.h - BALL_SPEED){
         pongBall.flipY();
+        Mix_PlayChannel(-1, ballCollideSound, 0);
     }
     if((rectCollision(pongBall.rect, rPaddle.rect) && (pongBall.returnDirX() == 1)) || (rectCollision(pongBall.rect, lPaddle.rect) && (pongBall.returnDirX() == -1))){
         pongBall.flipX();
+        Mix_PlayChannel(-1, paddleCollideSound, 0);
         if(BALL_SPEED < BALL_SPEED_MAX){    //Increment Ball Speed
             BALL_SPEED *= BALL_SPEED_INCREASE;
         }
@@ -463,6 +515,22 @@ void checkScore(){                                  //Check If Ball is Scored
         gameState = false;
     }
 }
+void checkWin(){                                    //Check If Anyone Has Won (At 7 Points)
+    if(lPaddle.returnScore() == 7){
+        gameWin = true;
+        //Create Win Text at Center of Screen
+        winText.updateText("Player 1 Wins!", logoFont);
+        winText.setPos(SCREEN_WIDTH/2 - winText.w/2, SCREEN_HEIGHT/2 - winText.h/2);
+        winText.updateRect();
+    }
+    if(rPaddle.returnScore() == 7){
+        gameWin = true;
+        //Create Win Text at Center of Screen
+        winText.updateText("Player 2 Wins!", logoFont);
+        winText.setPos(SCREEN_WIDTH/2 - winText.w/2, SCREEN_HEIGHT/2 - winText.h/2);
+        winText.updateRect();
+    }
+}
 void startGame(){                                   //Start the Game
     gameState = true;
     pongBall.randDirection();
@@ -471,10 +539,12 @@ void startGame(){                                   //Start the Game
 }
 void resetGame(){                                   //Reset the Game
     gameState = false;
+    gameWin = false;
     pongBall.movingOff();
     pongBall.reset();
     lPaddle.resetScore();
     rPaddle.resetScore();
+    Mix_PlayChannel(-1, resetSound, 0);
 }
 void gameLoop(){                                    //Main Game Loop
     //Main Loop Flag
@@ -508,10 +578,10 @@ void gameLoop(){                                    //Main Game Loop
         if(currentKeyStates[LPADDLE_DOWN]){                                                 //Left Paddle Down
             lPaddle.moveDown();
         }
-        if((currentKeyStates[START_GAME1] || currentKeyStates[START_GAME2]) && !gameState){ //Start Game
+        if((currentKeyStates[START_GAME1] || currentKeyStates[START_GAME2]) && !gameState && !gameWin){ //Start Game
             startGame();
         }
-        if(currentKeyStates[RESET_GAME] && gameState){                                      //Reset Game
+        if(currentKeyStates[RESET_GAME] && (gameState || gameWin)){                         //Reset Game
             resetGame();
         }
         if(currentKeyStates[EXIT_GAME]){                                                    //Quit
@@ -520,6 +590,7 @@ void gameLoop(){                                    //Main Game Loop
 
         pongBall.moveBall();
         checkScore();
+        checkWin();
         checkCollisions();
 
         updateScreen();
@@ -534,13 +605,31 @@ void close(){                                       //Close All Systems
     SDL_DestroyRenderer(renderer);
     renderer = NULL;
 
+    //Free Sounds
+    Mix_FreeChunk(ballCollideSound);
+    Mix_FreeChunk(paddleCollideSound);
+    Mix_FreeChunk(scoreSound);
+    Mix_FreeChunk(resetSound);
+    ballCollideSound = NULL;
+    paddleCollideSound = NULL;
+    scoreSound = NULL;
+    resetSound = NULL;
+
     //Free Graphics
     SDL_DestroyTexture(pongBall.texture);
     SDL_DestroyTexture(lPaddle.texture);
     SDL_DestroyTexture(rPaddle.texture);
+    SDL_DestroyTexture(logo.text);
+    SDL_DestroyTexture(lScore.text);
+    SDL_DestroyTexture(rScore.text);
+    SDL_DestroyTexture(winText.text);
     pongBall.texture = NULL;
     lPaddle.texture = NULL;
     rPaddle.texture = NULL;
+    logo.text = NULL;
+    lScore.text = NULL;
+    rScore.text = NULL;
+    winText.text = NULL;
 
     //Quit SDL
     SDL_Quit();

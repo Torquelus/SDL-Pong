@@ -1,11 +1,12 @@
 # depslib dependency file v1.0
-1520823778 source:c:\programming\sdl\pong\main.cpp
+1522463012 source:c:\programming\sdl\pong\main.cpp
 	<iostream>
 	<string>
 	<time.h>
 	<SDL.h>
 	<SDL_image.h>
 	<SDL_ttf.h>
+	<SDL_mixer.h>
 
 1508790581 c:\mingw\sdl2\include\sdl2\sdl.h
 	"SDL_main.h"
@@ -348,6 +349,15 @@
 
 1454366533 c:\mingw\sdl2_ttf\include\sdl2\sdl_ttf.h
 	"SDL.h"
+	"begin_code.h"
+	"close_code.h"
+
+1508776368 c:\mingw\sdl2_mixer\include\sdl2\sdl_mixer.h
+	"SDL_stdinc.h"
+	"SDL_rwops.h"
+	"SDL_audio.h"
+	"SDL_endian.h"
+	"SDL_version.h"
 	"begin_code.h"
 	"close_code.h"
 
